@@ -33,30 +33,58 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      
-      - name: Fix Android JVM target
+
+      - name: Fix Gradle configuration
         working-directory: project
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
+          root = Path("build.gradle.kts")
           app = Path("app/build.gradle.kts")
-          text = app.read_text()
 
-          block = '''
-          
-          // TRACK360 - Java/Kotlin JVM 17 compatibility
+          r = root.read_text()
+          a = app.read_text()
+
+          # Ajouter le plugin Serialization au niveau racine avec une version
+          if 'id("org.jetbrains.kotlin.plugin.serialization")' not in r:
+              marker = 'plugins {'
+              if marker in r:
+                  r = r.replace(
+                      marker,
+                      marker + '\n    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21" apply false',
+                      1
+                  )
+
+          # Activer le plugin dans l'application
+          if 'id("org.jetbrains.kotlin.plugin.serialization")' not in a:
+              marker = 'plugins {'
+              if marker in a:
+                  a = a.replace(
+                      marker,
+                      marker + '\n    id("org.jetbrains.kotlin.plugin.serialization")',
+                      1
+                  )
+
+          # Forcer Java 17
+          if "TRACK360_JVM17" not in a:
+              a += '''
+
+          // TRACK360_JVM17
           tasks.withType<JavaCompile>().configureEach {
               sourceCompatibility = "17"
               targetCompatibility = "17"
           }
           '''
 
-          if "TRACK360 - Java/Kotlin JVM 17 compatibility" not in text:
-              text += block
+          root.write_text(r)
+          app.write_text(a)
 
-          app.write_text(text)
-          print("Java JVM target configuré sur 17.")
+          print("Configuration Gradle corrigée.")
+          print("Root build.gradle.kts:")
+          print(r)
+          print("App build.gradle.kts:")
+          print(a)
           PY
 
       - name: Build APK
