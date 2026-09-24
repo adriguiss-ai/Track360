@@ -17,57 +17,36 @@ jobs:
       - name: Install unzip
         run: sudo apt-get update && sudo apt-get install -y unzip
 
-      - name: Extract TRACK360 project
+      - name: Extract project
         run: |
           mkdir project
           unzip -q TRACK360_GITHUB_READY_V2.zip -d project
-          echo "Contenu du projet :"
-          find project -maxdepth 3 -type f | sort
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle 8.10.2
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-          
-  - name: Fix Kotlin Serialization plugin
+
+      - name: Fix Kotlin Serialization
         working-directory: project
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
+          if ! grep -q 'org.jetbrains.kotlin.plugin.serialization' build.gradle.kts; then
+            sed -i '/kotlin.plugin.compose.*apply false/a\    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21" apply false' build.gradle.kts
+          fi
 
-          root = Path("build.gradle.kts")
-          text = root.read_text()
-
-          if "org.jetbrains.kotlin.plugin.serialization" not in text:
-              text = text.replace(
-                  'id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false',
-                  'id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false\n    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21" apply false'
-              )
-              root.write_text(text)
-
-          app = Path("app/build.gradle.kts")
-          text = app.read_text()
-
-          if 'id("org.jetbrains.kotlin.plugin.serialization")' not in text:
-              text = text.replace(
-                  'id("org.jetbrains.kotlin.plugin.compose")',
-                  'id("org.jetbrains.kotlin.plugin.compose")\n    id("org.jetbrains.kotlin.plugin.serialization")'
-              )
-              app.write_text(text)
-
-          print("Kotlin Serialization plugin configuré.")
-          PY
+          if ! grep -q 'org.jetbrains.kotlin.plugin.serialization' app/build.gradle.kts; then
+            sed -i '/kotlin.plugin.compose/a\    id("org.jetbrains.kotlin.plugin.serialization")' app/build.gradle.kts
+          fi
 
       - name: Build APK
         working-directory: project
-        run: |
-          gradle assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
