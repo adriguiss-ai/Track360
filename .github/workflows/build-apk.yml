@@ -22,12 +22,15 @@ jobs:
 
       - name: Find and extract TRACK360 package
         run: |
-          echo "=== Recherche du package corrigé ==="
+          echo "========================================"
+          echo "Recherche du package TRACK360 corrigé"
+          echo "========================================"
 
           ZIP=$(find . -maxdepth 1 -type f -name 'TRACK360_CORRECTED_*.zip' | head -n 1)
 
           if [ -z "$ZIP" ]; then
             echo "ERREUR : package TRACK360_CORRECTED introuvable."
+            echo ""
             echo "Fichiers ZIP disponibles :"
             find . -maxdepth 1 -type f -name '*.zip' -print
             exit 1
@@ -35,28 +38,37 @@ jobs:
 
           echo "Package trouvé : $ZIP"
 
+          rm -rf project
           mkdir -p project
 
           unzip -q "$ZIP" -d project
 
-          echo "=== Structure du projet ==="
-          find project -maxdepth 3 -type f | sort
+          echo ""
+          echo "========================================"
+          echo "Structure du package"
+          echo "========================================"
+
+          find project -maxdepth 4 -type f | sort
 
       - name: Detect Android project directory
         run: |
-          echo "=== Recherche de gradlew ==="
+          echo "========================================"
+          echo "Recherche du projet Android"
+          echo "========================================"
 
-          GRADLEW=$(find project -type f -name gradlew | head -n 1)
+          SETTINGS=$(find project -type f -name "settings.gradle.kts" | head -n 1)
 
-          if [ -z "$GRADLEW" ]; then
-            echo "ERREUR : gradlew introuvable."
+          if [ -z "$SETTINGS" ]; then
+            echo "ERREUR : settings.gradle.kts introuvable."
+            echo ""
+            echo "Fichiers trouvés :"
+            find project -maxdepth 5 -type f | sort
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$GRADLEW")
+          PROJECT_DIR=$(dirname "$SETTINGS")
 
-          echo "Gradlew trouvé : $GRADLEW"
-          echo "Projet Android : $PROJECT_DIR"
+          echo "Projet Android trouvé : $PROJECT_DIR"
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
@@ -66,36 +78,70 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Check Java version
+      - name: Check Java
         run: |
+          echo "========================================"
+          echo "Version Java"
+          echo "========================================"
           java -version
 
-      - name: Prepare Gradle
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Check Gradle
+        run: |
+          echo "========================================"
+          echo "Version Gradle"
+          echo "========================================"
+          gradle --version
+
+      - name: Check Android project
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          chmod +x gradlew
-          ./gradlew --version
+          echo "========================================"
+          echo "Projet Android"
+          echo "========================================"
+
+          echo "Répertoire :"
+          pwd
+
+          echo ""
+          echo "Fichiers Gradle :"
+          find . -maxdepth 3 \( \
+            -name "build.gradle.kts" \
+            -o -name "settings.gradle.kts" \
+            -o -name "gradle.properties" \
+          \) -print
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          echo "=== BUILD TRACK360 APK ==="
-          ./gradlew assembleDebug --no-daemon
+          echo "========================================"
+          echo "BUILD TRACK360 APK"
+          echo "========================================"
+
+          gradle assembleDebug --no-daemon
 
       - name: Verify APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          echo "=== Recherche de l'APK ==="
+          echo "========================================"
+          echo "Recherche de l'APK"
+          echo "========================================"
 
           find . -type f -name "*.apk" -print
 
           APK=$(find . -type f -name "*.apk" | head -n 1)
 
           if [ -z "$APK" ]; then
+            echo ""
             echo "ERREUR : APK introuvable."
             exit 1
           fi
 
+          echo ""
           echo "APK trouvé : $APK"
 
           echo "APK_PATH=$APK" >> "$GITHUB_ENV"
