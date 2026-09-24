@@ -34,6 +34,35 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
+          
+  - name: Fix Kotlin Serialization plugin
+        working-directory: project
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("build.gradle.kts")
+          text = root.read_text()
+
+          if "org.jetbrains.kotlin.plugin.serialization" not in text:
+              text = text.replace(
+                  'id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false',
+                  'id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false\n    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21" apply false'
+              )
+              root.write_text(text)
+
+          app = Path("app/build.gradle.kts")
+          text = app.read_text()
+
+          if 'id("org.jetbrains.kotlin.plugin.serialization")' not in text:
+              text = text.replace(
+                  'id("org.jetbrains.kotlin.plugin.compose")',
+                  'id("org.jetbrains.kotlin.plugin.compose")\n    id("org.jetbrains.kotlin.plugin.serialization")'
+              )
+              app.write_text(text)
+
+          print("Kotlin Serialization plugin configuré.")
+          PY
 
       - name: Build APK
         working-directory: project
