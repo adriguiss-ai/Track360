@@ -33,16 +33,31 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: Fix Kotlin Serialization
+      
+      - name: Fix Android JVM target
         working-directory: project
         run: |
-          if ! grep -q 'org.jetbrains.kotlin.plugin.serialization' build.gradle.kts; then
-            sed -i '/kotlin.plugin.compose.*apply false/a\    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21" apply false' build.gradle.kts
-          fi
+          python3 - <<'PY'
+          from pathlib import Path
 
-          if ! grep -q 'org.jetbrains.kotlin.plugin.serialization' app/build.gradle.kts; then
-            sed -i '/kotlin.plugin.compose/a\    id("org.jetbrains.kotlin.plugin.serialization")' app/build.gradle.kts
-          fi
+          app = Path("app/build.gradle.kts")
+          text = app.read_text()
+
+          block = '''
+          
+          // TRACK360 - Java/Kotlin JVM 17 compatibility
+          tasks.withType<JavaCompile>().configureEach {
+              sourceCompatibility = "17"
+              targetCompatibility = "17"
+          }
+          '''
+
+          if "TRACK360 - Java/Kotlin JVM 17 compatibility" not in text:
+              text += block
+
+          app.write_text(text)
+          print("Java JVM target configuré sur 17.")
+          PY
 
       - name: Build APK
         working-directory: project
@@ -53,3 +68,4 @@ jobs:
         with:
           name: TRACK360-debug-apk
           path: project/app/build/outputs/apk/debug/app-debug.apk
+    
