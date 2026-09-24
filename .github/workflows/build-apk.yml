@@ -17,22 +17,24 @@ jobs:
       - name: Install unzip
         run: sudo apt-get update && sudo apt-get install -y unzip
 
-      - name: Extract project
+      - name: Extract TRACK360 project
         run: |
           mkdir project
           unzip -q TRACK360_GITHUB_READY_V2.zip -d project
 
-      - name: Setup Java
+          echo "=== Structure du projet ==="
+          find project -maxdepth 3 -type f | sort
+
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Setup Gradle 8.10.2
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-
 
       - name: Fix Gradle configuration
         working-directory: project
@@ -43,57 +45,85 @@ jobs:
           root = Path("build.gradle.kts")
           app = Path("app/build.gradle.kts")
 
-          r = root.read_text()
-          a = app.read_text()
+          root_text = root.read_text()
+          app_text = app.read_text()
 
-          # Ajouter le plugin Serialization au niveau racine avec une version
-          if 'id("org.jetbrains.kotlin.plugin.serialization")' not in r:
-              marker = 'plugins {'
-              if marker in r:
-                  r = r.replace(
-                      marker,
-                      marker + '\n    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21" apply false',
+          # --------------------------------------------------
+          # Kotlin Serialization
+          # --------------------------------------------------
+
+          if 'org.jetbrains.kotlin.plugin.serialization' not in root_text:
+              if 'plugins {' in root_text:
+                  root_text = root_text.replace(
+                      'plugins {',
+                      '''plugins {
+              id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21" apply false''',
                       1
                   )
 
-          # Activer le plugin dans l'application
-          if 'id("org.jetbrains.kotlin.plugin.serialization")' not in a:
-              marker = 'plugins {'
-              if marker in a:
-                  a = a.replace(
-                      marker,
-                      marker + '\n    id("org.jetbrains.kotlin.plugin.serialization")',
+          if 'org.jetbrains.kotlin.plugin.serialization' not in app_text:
+              if 'plugins {' in app_text:
+                  app_text = app_text.replace(
+                      'plugins {',
+                      '''plugins {
+              id("org.jetbrains.kotlin.plugin.serialization")''',
                       1
                   )
 
-          # Forcer Java 17
-          if "TRACK360_JVM17" not in a:
-              a += '''
+          # --------------------------------------------------
+          # Java / Kotlin JVM 17
+          # --------------------------------------------------
 
-          // TRACK360_JVM17
-          tasks.withType<JavaCompile>().configureEach {
-              sourceCompatibility = "17"
-              targetCompatibility = "17"
+          jvm_config = '''
+
+          // TRACK360 JVM CONFIGURATION
+          android {
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+          }
+
+          tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
           }
           '''
 
-          root.write_text(r)
-          app.write_text(a)
+          if "TRACK360 JVM CONFIGURATION" not in app_text:
+              app_text += jvm_config
 
-          print("Configuration Gradle corrigée.")
-          print("Root build.gradle.kts:")
-          print(r)
-          print("App build.gradle.kts:")
-          print(a)
+          root.write_text(root_text)
+          app.write_text(app_text)
+
+          print("====================================")
+          print("TRACK360 Gradle configuration updated")
+          print("Kotlin Serialization : OK")
+          print("Java JVM target      : 17")
+          print("Kotlin JVM target    : 17")
+          print("====================================")
           PY
 
       - name: Build APK
         working-directory: project
-        run: gradle assembleDebug --no-daemon
+        run: |
+          gradle assembleDebug --no-daemon
+
+      - name: Verify APK
+        run: |
+          echo "=== Recherche de l'APK ==="
+          find project -type f -name "*.apk" -print
+
+          if [ ! -f "project/app/build/outputs/apk/debug/app-debug.apk" ]; then
+            echo "ERREUR : APK introuvable."
+            exit 1
+          fi
+
+          echo "APK trouvé avec succès."
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: TRACK360-debug-apk
           path: project/app/build/outputs/apk/debug/app-debug.apk
-    
