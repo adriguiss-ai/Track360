@@ -3,7 +3,8 @@ name: Build TRACK360 APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
+    branches:
+      - main
 
 jobs:
   build:
@@ -11,29 +12,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
       - name: Locate and extract TRACK360 project
         shell: bash
         run: |
           set -euo pipefail
 
+          echo "=============================="
+          echo "     TRACK360 ANDROID"
+          echo "=============================="
+
           rm -rf package build_project
           mkdir -p package build_project
+
+          echo "=== FICHIERS DU REPOSITORY ==="
+          find . -maxdepth 2 -type f | sort
 
           ZIP_FILE="$(find . -maxdepth 1 -type f -name '*.zip' -print -quit)"
 
           if [ -z "${ZIP_FILE}" ]; then
-            echo "ERREUR : aucun fichier ZIP TRACK360 trouvé à la racine."
-            find . -maxdepth 2 -type f | sort
+            echo "ERREUR : aucun ZIP TRACK360 trouvé."
             exit 1
           fi
 
@@ -41,22 +48,40 @@ jobs:
 
           unzip -q "${ZIP_FILE}" -d package
 
-          if [ -f package/settings.gradle.kts ] || [ -f package/settings.gradle ]; then
+          echo "=== CONTENU DU ZIP ==="
+          find package -maxdepth 4 -type f | sort
+
+          if [ -f package/settings.gradle.kts ] || \
+             [ -f package/settings.gradle ]; then
+
+            echo "Projet Gradle trouvé directement dans le ZIP."
+
             cp -a package/. build_project/
+
           else
-            PROJECT_ZIP="$(find package -type f -name 'TRACK360_Android_Project.zip' -print -quit)"
+
+            PROJECT_ZIP="$(find package \
+              -type f \
+              -name 'TRACK360_Android_Project.zip' \
+              -print -quit)"
 
             if [ -z "${PROJECT_ZIP}" ]; then
-              PROJECT_ZIP="$(find package -type f -name '*.zip' -print -quit)"
+              PROJECT_ZIP="$(find package \
+                -type f \
+                -name '*.zip' \
+                -print -quit)"
             fi
 
             if [ -z "${PROJECT_ZIP}" ]; then
               echo "ERREUR : aucun projet Android Gradle trouvé."
-              find package -maxdepth 4 -type f | sort
+              find package -maxdepth 5 -type f | sort
               exit 1
             fi
 
+            echo "Projet Android ZIP trouvé : ${PROJECT_ZIP}"
+
             unzip -q "${PROJECT_ZIP}" -d build_project
+
           fi
 
           if [ ! -f build_project/settings.gradle.kts ] && \
@@ -72,31 +97,52 @@ jobs:
                { [ -f "${ROOT_DIR}/settings.gradle.kts" ] || \
                  [ -f "${ROOT_DIR}/settings.gradle" ]; }; then
 
+              echo "Déplacement du projet Android depuis le dossier interne."
+
               cp -a "${ROOT_DIR}"/. build_project/
             fi
+
           fi
 
-          echo "=== PROJET TRACK360 ==="
-          find build_project -maxdepth 3 -type f | sort
+          echo "=== PROJET FINAL ==="
+          find build_project -maxdepth 4 -type f | sort
 
-          test -f build_project/settings.gradle.kts || \
-          test -f build_project/settings.gradle
+          echo "=== VERIFICATION ==="
 
-          test -f build_project/app/build.gradle.kts || \
-          test -f build_project/app/build.gradle
+          if [ ! -f build_project/settings.gradle.kts ] && \
+             [ ! -f build_project/settings.gradle ]; then
+            echo "ERREUR : settings.gradle introuvable."
+            exit 1
+          fi
 
-          test -f build_project/app/src/main/AndroidManifest.xml
+          if [ ! -f build_project/app/build.gradle.kts ] && \
+             [ ! -f build_project/app/build.gradle ]; then
+            echo "ERREUR : build.gradle de l'application introuvable."
+            exit 1
+          fi
 
-          test -f build_project/app/src/main/java/com/track360/app/MainActivity.kt
+          if [ ! -f build_project/app/src/main/AndroidManifest.xml ]; then
+            echo "ERREUR : AndroidManifest.xml introuvable."
+            exit 1
+          fi
 
-      - name: Setup Gradle 8.9
+          echo "Projet Android TRACK360 OK."
+
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
 
       - name: Build TRACK360 Debug APK
         working-directory: build_project
+        shell: bash
         run: |
+          set -euo pipefail
+
+          echo "=============================="
+          echo "      BUILD TRACK360 APK"
+          echo "=============================="
+
           gradle --no-daemon --stacktrace assembleDebug
 
       - name: Verify APK
@@ -104,18 +150,23 @@ jobs:
         run: |
           set -euo pipefail
 
+          echo "Recherche de l'APK..."
+
           APK="$(find build_project/app/build/outputs/apk \
             -type f \
             -name '*.apk' \
             -print -quit)"
 
           if [ -z "${APK}" ]; then
-            echo "ERREUR : APK introuvable."
-            find build_project/app/build -maxdepth 5 -type f | sort || true
+            echo "ERREUR : aucun APK généré."
+
+            echo "=== CONTENU BUILD ==="
+            find build_project/app/build -maxdepth 6 -type f | sort || true
+
             exit 1
           fi
 
-          echo "APK généré : ${APK}"
+          echo "APK trouvé : ${APK}"
 
           cp "${APK}" TRACK360-debug.apk
 
