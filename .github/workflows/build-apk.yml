@@ -27,15 +27,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "=============================="
-          echo "     TRACK360 ANDROID"
-          echo "=============================="
-
           rm -rf package build_project
           mkdir -p package build_project
-
-          echo "=== FICHIERS DU REPOSITORY ==="
-          find . -maxdepth 2 -type f | sort
 
           ZIP_FILE="$(find . -maxdepth 1 -type f -name '*.zip' -print -quit)"
 
@@ -44,17 +37,12 @@ jobs:
             exit 1
           fi
 
-          echo "ZIP trouvé : ${ZIP_FILE}"
+          echo "ZIP : ${ZIP_FILE}"
 
           unzip -q "${ZIP_FILE}" -d package
 
-          echo "=== CONTENU DU ZIP ==="
-          find package -maxdepth 4 -type f | sort
-
           if [ -f package/settings.gradle.kts ] || \
              [ -f package/settings.gradle ]; then
-
-            echo "Projet Gradle trouvé directement dans le ZIP."
 
             cp -a package/. build_project/
 
@@ -73,15 +61,12 @@ jobs:
             fi
 
             if [ -z "${PROJECT_ZIP}" ]; then
-              echo "ERREUR : aucun projet Android Gradle trouvé."
+              echo "ERREUR : projet Android introuvable."
               find package -maxdepth 5 -type f | sort
               exit 1
             fi
 
-            echo "Projet Android ZIP trouvé : ${PROJECT_ZIP}"
-
             unzip -q "${PROJECT_ZIP}" -d build_project
-
           fi
 
           if [ ! -f build_project/settings.gradle.kts ] && \
@@ -97,36 +82,49 @@ jobs:
                { [ -f "${ROOT_DIR}/settings.gradle.kts" ] || \
                  [ -f "${ROOT_DIR}/settings.gradle" ]; }; then
 
-              echo "Déplacement du projet Android depuis le dossier interne."
-
               cp -a "${ROOT_DIR}"/. build_project/
             fi
-
           fi
 
-          echo "=== PROJET FINAL ==="
-          find build_project -maxdepth 4 -type f | sort
+          echo "=== PROJET ==="
+          find build_project -maxdepth 3 -type f | sort
 
-          echo "=== VERIFICATION ==="
+          test -f build_project/settings.gradle.kts || \
+          test -f build_project/settings.gradle
 
-          if [ ! -f build_project/settings.gradle.kts ] && \
-             [ ! -f build_project/settings.gradle ]; then
-            echo "ERREUR : settings.gradle introuvable."
-            exit 1
-          fi
+          test -f build_project/app/build.gradle.kts || \
+          test -f build_project/app/build.gradle
 
-          if [ ! -f build_project/app/build.gradle.kts ] && \
-             [ ! -f build_project/app/build.gradle ]; then
-            echo "ERREUR : build.gradle de l'application introuvable."
-            exit 1
-          fi
+          test -f build_project/app/src/main/AndroidManifest.xml
 
-          if [ ! -f build_project/app/src/main/AndroidManifest.xml ]; then
-            echo "ERREUR : AndroidManifest.xml introuvable."
-            exit 1
-          fi
+      - name: Configure JVM 17
+        working-directory: build_project
+        shell: bash
+        run: |
+          set -euo pipefail
 
-          echo "Projet Android TRACK360 OK."
+          cat > jvm17.gradle <<'EOF'
+          allprojects {
+              tasks.configureEach {
+                  if (name.contains("Java")) {
+                      try {
+                          sourceCompatibility = "17"
+                          targetCompatibility = "17"
+                      } catch (Exception ignored) {
+                      }
+                  }
+
+                  if (name.contains("Kotlin")) {
+                      try {
+                          kotlinOptions.jvmTarget = "17"
+                      } catch (Exception ignored) {
+                      }
+                  }
+              }
+          }
+          EOF
+
+          echo "JVM 17 configuration created."
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -140,17 +138,19 @@ jobs:
           set -euo pipefail
 
           echo "=============================="
-          echo "      BUILD TRACK360 APK"
+          echo " BUILD TRACK360 APK - JVM 17"
           echo "=============================="
 
-          gradle --no-daemon --stacktrace assembleDebug
+          gradle \
+            --no-daemon \
+            --stacktrace \
+            -I jvm17.gradle \
+            assembleDebug
 
       - name: Verify APK
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "Recherche de l'APK..."
 
           APK="$(find build_project/app/build/outputs/apk \
             -type f \
@@ -158,11 +158,8 @@ jobs:
             -print -quit)"
 
           if [ -z "${APK}" ]; then
-            echo "ERREUR : aucun APK généré."
-
-            echo "=== CONTENU BUILD ==="
+            echo "ERREUR : APK introuvable."
             find build_project/app/build -maxdepth 6 -type f | sort || true
-
             exit 1
           fi
 
