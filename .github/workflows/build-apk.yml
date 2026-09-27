@@ -10,61 +10,65 @@ permissions:
   contents: read
 
 jobs:
-
   build:
     name: Build TRACK360 APK
     runs-on: ubuntu-latest
 
     steps:
 
-      # ============================================================
+      # =========================================================
       # 1. CHECKOUT
-      # ============================================================
+      # =========================================================
       - name: Checkout
         uses: actions/checkout@v4
 
-
-      # ============================================================
-      # 2. JAVA 17
-      # ============================================================
+      # =========================================================
+      # 2. JDK 17
+      # =========================================================
       - name: Setup JDK 17
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
           java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
 
+      # =========================================================
+      # 3. INSTALL GRADLE 8.9
+      # =========================================================
+      - name: Setup Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
-      # ============================================================
-      # 3. RECHERCHE DU ZIP
-      # ============================================================
+      # =========================================================
+      # 4. FIND TRACK360 ZIP
+      # =========================================================
       - name: Locate TRACK360 ZIP
         shell: bash
         run: |
           set -e
 
-          echo "===================================="
-          echo " RECHERCHE DU ZIP TRACK360"
-          echo "===================================="
+          echo "======================================"
+          echo "       TRACK360 - SEARCH ZIP"
+          echo "======================================"
 
-          find . -maxdepth 3 -type f -iname "*.zip" -print
-
-          ZIP_FILE=$(find . -maxdepth 3 -type f \
-            -iname "*TRACK360*.zip" \
-            | head -1)
+          ZIP_FILE=$(find . -maxdepth 2 -type f \
+            \( -iname "TRACK360*.zip" -o -iname "*TRACK360*.zip" \) \
+            | head -n 1)
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERREUR : aucun ZIP TRACK360 trouvé."
+            echo "ERROR: Aucun ZIP TRACK360 trouvé."
+            echo "Fichiers présents :"
+            find . -maxdepth 3 -type f | head -100
             exit 1
           fi
 
           echo "ZIP trouvé : $ZIP_FILE"
-
           echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
 
-
-      # ============================================================
-      # 4. EXTRACTION
-      # ============================================================
+      # =========================================================
+      # 5. EXTRACT PROJECT
+      # =========================================================
       - name: Extract TRACK360 project
         shell: bash
         run: |
@@ -75,199 +79,240 @@ jobs:
 
           unzip -q "$ZIP_FILE" -d track360_build
 
-          echo "Projet extrait."
+          echo "======================================"
+          echo "       EXTRACTION TERMINEE"
+          echo "======================================"
 
-          find track360_build -maxdepth 4 -type f | head -150
+          find track360_build -maxdepth 3 -type f | head -100
 
-
-      # ============================================================
-      # 5. TROUVER LE PROJET ANDROID
-      # ============================================================
+      # =========================================================
+      # 6. FIND ANDROID PROJECT
+      # =========================================================
       - name: Find Android Gradle project
         shell: bash
         run: |
           set -e
 
-          SETTINGS=$(find track360_build \
-            -type f \
-            \( -name "settings.gradle" -o -name "settings.gradle.kts" \) \
-            | head -1)
+          echo "======================================"
+          echo "       RECHERCHE PROJET ANDROID"
+          echo "======================================"
 
-          if [ -z "$SETTINGS" ]; then
-            echo "ERREUR : settings.gradle(.kts) introuvable."
+          PROJECT_DIR=$(find track360_build -type f \
+            \( -name "settings.gradle" \
+            -o -name "settings.gradle.kts" \) \
+            -printf '%h\n' \
+            | head -n 1)
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: Aucun projet Gradle Android trouvé."
+            echo ""
+            echo "Contenu extrait :"
+            find track360_build -maxdepth 4 -type f
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$SETTINGS")
-
-          echo "Projet Android trouvé :"
-          echo "$PROJECT_DIR"
-
+          echo "PROJECT_DIR=$PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-
-      # ============================================================
-      # 6. VERIFICATION DU PROJET
-      # ============================================================
+      # =========================================================
+      # 7. CHECK PROJECT
+      # =========================================================
       - name: Check TRACK360 project
         shell: bash
         run: |
           set -e
 
-          echo "===================================="
-          echo " TRACK360 ANDROID"
-          echo "===================================="
+          echo "======================================"
+          echo "          TRACK360 ANDROID"
+          echo "======================================"
 
-          echo "PROJECT_DIR=$PROJECT_DIR"
+          cd "$PROJECT_DIR"
 
           echo ""
-          echo "Fichiers :"
-          ls -la "$PROJECT_DIR"
+          echo "Contenu :"
+          ls -la
 
-          if [ ! -f "$PROJECT_DIR/settings.gradle.kts" ] && \
-             [ ! -f "$PROJECT_DIR/settings.gradle" ]; then
-            echo "ERREUR : settings.gradle(.kts) absent."
+          echo ""
+          echo "Gradle files :"
+          find . -maxdepth 3 -type f \
+            \( -name "build.gradle" \
+            -o -name "build.gradle.kts" \
+            -o -name "settings.gradle" \
+            -o -name "settings.gradle.kts" \)
+
+          if [ ! -f "settings.gradle" ] && \
+             [ ! -f "settings.gradle.kts" ]; then
+            echo "ERROR: settings.gradle(.kts) absent."
             exit 1
           fi
 
-          if [ ! -f "$PROJECT_DIR/build.gradle.kts" ] && \
-             [ ! -f "$PROJECT_DIR/build.gradle" ]; then
-            echo "ERREUR : build.gradle(.kts) absent."
-            exit 1
-          fi
-
-          echo ""
-          echo "Projet Gradle OK."
-
-
-      # ============================================================
-      # 7. INSTALLATION GRADLE 8.9
-      # ============================================================
-      - name: Setup Gradle 8.9
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-
-      # ============================================================
-      # 8. VERIFICATION JAVA / GRADLE
-      # ============================================================
-      - name: Check Java and Gradle
+      # =========================================================
+      # 8. FORCE JAVA/KOTLIN 17
+      # =========================================================
+      - name: Force JVM 17 compatibility
         shell: bash
         run: |
           set -e
 
-          echo "===================================="
-          echo " JAVA / GRADLE"
-          echo "===================================="
+          cd "$PROJECT_DIR"
 
+          echo "======================================"
+          echo "       FORCE JAVA / KOTLIN 17"
+          echo "======================================"
+
+          find . -type f \
+            \( -name "build.gradle" -o -name "build.gradle.kts" \) \
+            -print0 | while IFS= read -r -d '' FILE
+          do
+            echo ""
+            echo "Correction : $FILE"
+
+            # Supprime les anciennes configurations release Java 8
+            sed -i \
+              -E '/options\.release\.set\(.*\)/d' "$FILE" || true
+
+            sed -i \
+              -E '/options\.release\.set\(JavaLanguageVersion.*\)/d' "$FILE" || true
+
+            # Java 1.8 -> 17
+            sed -i \
+              -E 's/sourceCompatibility[[:space:]]*=[[:space:]]*["'\'']1\.8["'\'']/sourceCompatibility = JavaVersion.VERSION_17/g' "$FILE" || true
+
+            sed -i \
+              -E 's/targetCompatibility[[:space:]]*=[[:space:]]*["'\'']1\.8["'\'']/targetCompatibility = JavaVersion.VERSION_17/g' "$FILE" || true
+
+            # Kotlin 1.8 / 8 -> 17
+            sed -i \
+              -E 's/jvmTarget[[:space:]]*=[[:space:]]*["'\'']1\.8["'\'']/jvmTarget = "17"/g' "$FILE" || true
+
+            sed -i \
+              -E 's/jvmTarget[[:space:]]*=[[:space:]]*["'\'']8["'\'']/jvmTarget = "17"/g' "$FILE" || true
+
+            # JavaVersion.VERSION_1_8 -> VERSION_17
+            sed -i \
+              -E 's/JavaVersion\.VERSION_1_8/JavaVersion.VERSION_17/g' "$FILE" || true
+
+            # VERSION_1_8 -> VERSION_17
+            sed -i \
+              -E 's/JvmTarget\.JVM_1_8/JvmTarget.JVM_17/g' "$FILE" || true
+          done
+
+          echo ""
+          echo "Java version :"
           java -version
 
           echo ""
-
+          echo "Gradle version :"
           gradle --version
 
-
-      # ============================================================
-      # 9. FORCER JVM 17
-      # ============================================================
-      - name: Configure JVM 17
+      # =========================================================
+      # 9. CONFIGURE GRADLE
+      # =========================================================
+      - name: Configure Gradle
         shell: bash
         run: |
           set -e
 
-          cat > "$PROJECT_DIR/track360-jvm17.gradle" <<'EOF'
-          allprojects {
+          cd "$PROJECT_DIR"
 
-              tasks.withType(JavaCompile).configureEach {
-                  options.release = 17
-              }
+          echo "======================================"
+          echo "       CONFIGURATION GRADLE"
+          echo "======================================"
 
-              tasks.matching {
-                  it.name.startsWith("compile") &&
-                  it.name.endsWith("Kotlin")
-              }.configureEach {
-                  kotlinOptions.jvmTarget = "17"
-              }
-          }
-          EOF
+          export JAVA_HOME="$JAVA_HOME"
 
-          echo "Configuration JVM 17 créée."
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+            GRADLE_CMD="./gradlew"
+          else
+            GRADLE_CMD="gradle"
+          fi
 
-          cat "$PROJECT_DIR/track360-jvm17.gradle"
+          echo "GRADLE_CMD=$GRADLE_CMD" >> "$GITHUB_ENV"
 
+          echo "Gradle command : $GRADLE_CMD"
 
-      # ============================================================
+          $GRADLE_CMD --version
+
+      # =========================================================
       # 10. BUILD APK
-      # ============================================================
+      # =========================================================
       - name: Build TRACK360 Debug APK
-        working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
           set -e
 
-          echo "===================================="
-          echo " BUILD TRACK360 APK"
-          echo " GRADLE 8.9"
-          echo " JAVA 17"
-          echo "===================================="
+          cd "$PROJECT_DIR"
 
-          gradle \
+          echo "======================================"
+          echo "       BUILD TRACK360 APK"
+          echo "       GRADLE 8.9"
+          echo "       JAVA 17"
+          echo "======================================"
+
+          $GRADLE_CMD \
             --no-daemon \
             --stacktrace \
-            -I track360-jvm17.gradle \
-            assembleDebug
+            --info \
+            :app:assembleDebug
 
-
-      # ============================================================
-      # 11. RECHERCHE APK
-      # ============================================================
+      # =========================================================
+      # 11. FIND APK
+      # =========================================================
       - name: Find TRACK360 APK
         shell: bash
         run: |
           set -e
 
+          echo "======================================"
+          echo "          RECHERCHE APK"
+          echo "======================================"
+
           APK=$(find "$PROJECT_DIR" \
             -type f \
             -name "*.apk" \
-            | head -1)
+            | grep -E "debug|release" \
+            | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo "ERREUR : APK introuvable."
-
-            find "$PROJECT_DIR" \
-              -type f \
-              -name "*.apk" \
-              -print
-
+            echo "ERROR: APK introuvable."
+            find "$PROJECT_DIR" -type f | grep -i apk || true
             exit 1
           fi
 
-          echo "APK trouvée : $APK"
+          echo "APK trouvé : $APK"
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
 
-          echo "APK=$APK" >> "$GITHUB_ENV"
-
-
-      # ============================================================
-      # 12. VERIFICATION APK
-      # ============================================================
+      # =========================================================
+      # 12. VERIFY APK
+      # =========================================================
       - name: Verify APK
         shell: bash
         run: |
           set -e
 
-          test -f "$APK"
+          echo "======================================"
+          echo "          VERIFICATION APK"
+          echo "======================================"
 
-          echo "APK valide :"
-          ls -lh "$APK"
+          ls -lh "$APK_PATH"
 
+          file "$APK_PATH"
 
-      # ============================================================
+          if [ ! -s "$APK_PATH" ]; then
+            echo "ERROR: APK vide."
+            exit 1
+          fi
+
+          echo "APK TRACK360 valide."
+
+      # =========================================================
       # 13. UPLOAD APK
-      # ============================================================
+      # =========================================================
       - name: Upload TRACK360 APK
         uses: actions/upload-artifact@v4
         with:
-          name: TRACK360-debug-apk
-          path: ${{ env.APK }}
+          name: TRACK360-debug-APK
+          path: ${{ env.APK_PATH }}
           if-no-files-found: error
+          retention-days: 30
