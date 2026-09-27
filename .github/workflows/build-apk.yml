@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-
   workflow_dispatch:
 
 permissions:
@@ -26,10 +25,7 @@ jobs:
 
 
       # ============================================================
-      # 2. SETUP JAVA 17
-      # IMPORTANT :
-      # PAS DE "cache: gradle" ici.
-      # Le projet Gradle est encore dans le ZIP à ce moment.
+      # 2. JAVA 17
       # ============================================================
       - name: Setup JDK 17
         uses: actions/setup-java@v5
@@ -39,7 +35,7 @@ jobs:
 
 
       # ============================================================
-      # 3. RECHERCHE DU ZIP TRACK360
+      # 3. RECHERCHE DU ZIP
       # ============================================================
       - name: Locate TRACK360 ZIP
         shell: bash
@@ -50,26 +46,17 @@ jobs:
           echo " RECHERCHE DU ZIP TRACK360"
           echo "===================================="
 
-          echo "ZIP disponibles dans le dépôt :"
-
-          find . -maxdepth 3 -type f \
-            \( -iname "*.zip" \) \
-            -print
+          find . -maxdepth 3 -type f -iname "*.zip" -print
 
           ZIP_FILE=$(find . -maxdepth 3 -type f \
-            \( -iname "TRACK360*.zip" -o -iname "*TRACK360*.zip" \) \
+            -iname "*TRACK360*.zip" \
             | head -1)
 
           if [ -z "$ZIP_FILE" ]; then
-            echo ""
             echo "ERREUR : aucun ZIP TRACK360 trouvé."
-            echo ""
-            echo "ZIP disponibles :"
-            find . -maxdepth 4 -type f -iname "*.zip" -print
             exit 1
           fi
 
-          echo ""
           echo "ZIP trouvé : $ZIP_FILE"
 
           echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
@@ -83,85 +70,37 @@ jobs:
         run: |
           set -e
 
-          echo "===================================="
-          echo " EXTRACTION TRACK360"
-          echo "===================================="
-
           rm -rf track360_build
-
           mkdir -p track360_build
 
           unzip -q "$ZIP_FILE" -d track360_build
 
-          echo ""
           echo "Projet extrait."
 
-          echo ""
-          echo "Fichiers principaux :"
-
-          find track360_build -maxdepth 5 -type f \
-            | sed -n '1,150p'
+          find track360_build -maxdepth 4 -type f | head -150
 
 
       # ============================================================
-      # 5. RECHERCHE DU PROJET GRADLE
+      # 5. TROUVER LE PROJET ANDROID
       # ============================================================
       - name: Find Android Gradle project
         shell: bash
         run: |
           set -e
 
-          echo "===================================="
-          echo " RECHERCHE PROJET ANDROID"
-          echo "===================================="
-
-          PROJECT_DIR=""
-
-          # Priorité au Gradle Wrapper
-          GRADLEW=$(find track360_build \
+          SETTINGS=$(find track360_build \
             -type f \
-            -name "gradlew" \
+            \( -name "settings.gradle" -o -name "settings.gradle.kts" \) \
             | head -1)
 
-          if [ -n "$GRADLEW" ]; then
-            PROJECT_DIR=$(dirname "$GRADLEW")
-          fi
-
-          # Si gradlew absent, chercher settings.gradle
-          if [ -z "$PROJECT_DIR" ]; then
-            SETTINGS=$(find track360_build \
-              -type f \
-              \( -name "settings.gradle" -o -name "settings.gradle.kts" \) \
-              | head -1)
-
-            if [ -n "$SETTINGS" ]; then
-              PROJECT_DIR=$(dirname "$SETTINGS")
-            fi
-          fi
-
-          # Dernier recours : build.gradle
-          if [ -z "$PROJECT_DIR" ]; then
-            BUILD_FILE=$(find track360_build \
-              -type f \
-              \( -name "build.gradle" -o -name "build.gradle.kts" \) \
-              | head -1)
-
-            if [ -n "$BUILD_FILE" ]; then
-              PROJECT_DIR=$(dirname "$BUILD_FILE")
-            fi
-          fi
-
-          if [ -z "$PROJECT_DIR" ]; then
-            echo ""
-            echo "ERREUR : aucun projet Gradle Android trouvé."
-            echo ""
-            echo "Contenu du ZIP :"
-            find track360_build -maxdepth 7 -type f -print
+          if [ -z "$SETTINGS" ]; then
+            echo "ERREUR : settings.gradle(.kts) introuvable."
             exit 1
           fi
 
-          echo ""
-          echo "Projet Gradle trouvé :"
+          PROJECT_DIR=$(dirname "$SETTINGS")
+
+          echo "Projet Android trouvé :"
           echo "$PROJECT_DIR"
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
@@ -179,54 +118,58 @@ jobs:
           echo " TRACK360 ANDROID"
           echo "===================================="
 
-          echo ""
-          echo "PROJECT_DIR:"
-          echo "$PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR"
 
           echo ""
-          echo "Contenu :"
+          echo "Fichiers :"
           ls -la "$PROJECT_DIR"
 
+          if [ ! -f "$PROJECT_DIR/settings.gradle.kts" ] && \
+             [ ! -f "$PROJECT_DIR/settings.gradle" ]; then
+            echo "ERREUR : settings.gradle(.kts) absent."
+            exit 1
+          fi
+
+          if [ ! -f "$PROJECT_DIR/build.gradle.kts" ] && \
+             [ ! -f "$PROJECT_DIR/build.gradle" ]; then
+            echo "ERREUR : build.gradle(.kts) absent."
+            exit 1
+          fi
+
           echo ""
-
-          if [ -f "$PROJECT_DIR/gradlew" ]; then
-            echo "Gradle Wrapper : OK"
-          else
-            echo "ERREUR : gradlew absent."
-            exit 1
-          fi
-
-          if [ -f "$PROJECT_DIR/settings.gradle" ] || \
-             [ -f "$PROJECT_DIR/settings.gradle.kts" ]; then
-            echo "Settings Gradle : OK"
-          else
-            echo "ERREUR : settings.gradle absent."
-            exit 1
-          fi
+          echo "Projet Gradle OK."
 
 
       # ============================================================
-      # 7. GRADLE EXECUTABLE
+      # 7. INSTALLATION GRADLE 8.9
       # ============================================================
-      - name: Make Gradle executable
+      - name: Setup Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+
+      # ============================================================
+      # 8. VERIFICATION JAVA / GRADLE
+      # ============================================================
+      - name: Check Java and Gradle
         shell: bash
         run: |
           set -e
 
-          chmod +x "$PROJECT_DIR/gradlew"
+          echo "===================================="
+          echo " JAVA / GRADLE"
+          echo "===================================="
 
-          echo "Gradle Wrapper prêt."
+          java -version
+
+          echo ""
+
+          gradle --version
 
 
       # ============================================================
-      # 8. CONFIGURATION JVM 17
-      #
-      # Corrige le problème :
-      #
-      # JavaCompile = 1.8
-      # KotlinCompile = 17
-      #
-      # Tout sera compilé en JVM 17.
+      # 9. FORCER JVM 17
       # ============================================================
       - name: Configure JVM 17
         shell: bash
@@ -249,29 +192,9 @@ jobs:
           }
           EOF
 
-          echo "Configuration JVM 17 :"
+          echo "Configuration JVM 17 créée."
 
           cat "$PROJECT_DIR/track360-jvm17.gradle"
-
-
-      # ============================================================
-      # 9. VERIFICATION JAVA / GRADLE
-      # ============================================================
-      - name: Check Java and Gradle
-        working-directory: ${{ env.PROJECT_DIR }}
-        shell: bash
-        run: |
-          set -e
-
-          echo "===================================="
-          echo " JAVA / GRADLE"
-          echo "===================================="
-
-          java -version
-
-          echo ""
-
-          ./gradlew --version
 
 
       # ============================================================
@@ -285,10 +208,11 @@ jobs:
 
           echo "===================================="
           echo " BUILD TRACK360 APK"
-          echo " JVM 17"
+          echo " GRADLE 8.9"
+          echo " JAVA 17"
           echo "===================================="
 
-          ./gradlew \
+          gradle \
             --no-daemon \
             --stacktrace \
             -I track360-jvm17.gradle \
@@ -303,18 +227,12 @@ jobs:
         run: |
           set -e
 
-          echo "===================================="
-          echo " RECHERCHE APK"
-          echo "===================================="
-
           APK=$(find "$PROJECT_DIR" \
             -type f \
             -name "*.apk" \
-            | grep -E "debug|release" \
             | head -1)
 
           if [ -z "$APK" ]; then
-            echo ""
             echo "ERREUR : APK introuvable."
 
             find "$PROJECT_DIR" \
@@ -325,9 +243,7 @@ jobs:
             exit 1
           fi
 
-          echo ""
-          echo "APK trouvée :"
-          echo "$APK"
+          echo "APK trouvée : $APK"
 
           echo "APK=$APK" >> "$GITHUB_ENV"
 
@@ -340,13 +256,9 @@ jobs:
         run: |
           set -e
 
-          if [ ! -f "$APK" ]; then
-            echo "ERREUR : APK inexistante."
-            exit 1
-          fi
+          test -f "$APK"
 
-          echo "APK valide : $APK"
-
+          echo "APK valide :"
           ls -lh "$APK"
 
 
