@@ -29,7 +29,7 @@ jobs:
           distribution: 'temurin'
 
       # ============================================================
-      # 3. INSTALL GRADLE 8.9
+      # 3. GRADLE 8.9
       # ============================================================
       - name: Setup Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
@@ -37,18 +37,18 @@ jobs:
           gradle-version: '8.9'
 
       # ============================================================
-      # 4. FIND TRACK360 ZIP
+      # 4. FIND TRACK360 V3 ZIP
       # ============================================================
-      - name: Locate TRACK360 ZIP
+      - name: Locate TRACK360 V3 ZIP
         shell: bash
         run: |
           set -e
 
           echo "======================================"
-          echo "SEARCH TRACK360 ZIP"
+          echo "SEARCH TRACK360 V3 ZIP"
           echo "======================================"
 
-          ZIP_FILE="TRACK360_Android_Project_V2.zip"
+          ZIP_FILE="TRACK360_Android_Project_V3.zip"
 
           if [ ! -f "$ZIP_FILE" ]; then
             echo "ERROR: $ZIP_FILE introuvable."
@@ -64,13 +64,13 @@ jobs:
       # ============================================================
       # 5. EXTRACT ZIP
       # ============================================================
-      - name: Extract TRACK360 project
+      - name: Extract TRACK360 V3 project
         shell: bash
         run: |
           set -e
 
           echo "======================================"
-          echo "EXTRACT TRACK360 ZIP"
+          echo "EXTRACT TRACK360 V3 ZIP"
           echo "======================================"
 
           rm -rf track360_build
@@ -110,8 +110,10 @@ jobs:
             echo ""
             echo "Recherche complète:"
             find track360_build -type f \
-              \( -name "settings.gradle.kts" -o -name "settings.gradle" \
-              -o -name "build.gradle.kts" -o -name "build.gradle" \) \
+              \( -name "settings.gradle.kts" \
+              -o -name "settings.gradle" \
+              -o -name "build.gradle.kts" \
+              -o -name "build.gradle" \) \
               -print
             exit 1
           fi
@@ -226,7 +228,7 @@ jobs:
           cd "$PROJECT_DIR"
 
           echo "======================================"
-          echo "BUILD TRACK360 APK"
+          echo "BUILD TRACK360 V3 APK"
           echo "======================================"
           echo "Gradle : 8.9"
           echo "Java   : 17"
