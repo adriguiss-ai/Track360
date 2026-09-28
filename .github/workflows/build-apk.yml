@@ -48,7 +48,7 @@ jobs:
           echo "SEARCH TRACK360 ZIP"
           echo "======================================"
 
-          ZIP_FILE="TRACK360_Android_Project_FIXED.zip"
+          ZIP_FILE="TRACK360_Android_Project_V2.zip"
 
           if [ ! -f "$ZIP_FILE" ]; then
             echo "ERROR: $ZIP_FILE introuvable."
@@ -59,7 +59,6 @@ jobs:
           fi
 
           echo "ZIP trouvé : $ZIP_FILE"
-
           echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
 
       # ============================================================
@@ -111,7 +110,8 @@ jobs:
             echo ""
             echo "Recherche complète:"
             find track360_build -type f \
-              \( -name "settings.gradle.kts" -o -name "settings.gradle" -o -name "build.gradle.kts" -o -name "build.gradle" \) \
+              \( -name "settings.gradle.kts" -o -name "settings.gradle" \
+              -o -name "build.gradle.kts" -o -name "build.gradle" \) \
               -print
             exit 1
           fi
@@ -151,7 +151,7 @@ jobs:
           fi
 
       # ============================================================
-      # 8. CREATE JVM 17 INIT SCRIPT
+      # 8. FORCE JVM 17 COMPATIBILITY
       # ============================================================
       - name: Configure JVM 17
         shell: bash
@@ -196,7 +196,8 @@ jobs:
 
               afterEvaluate { project ->
 
-                  def androidExtension = project.extensions.findByName("android")
+                  def androidExtension =
+                      project.extensions.findByName("android")
 
                   if (androidExtension != null) {
                       try {
@@ -262,11 +263,9 @@ jobs:
 
           if [ -z "$APK_FILE" ]; then
             echo "ERROR: APK Debug introuvable."
-
             echo ""
             echo "APK disponibles:"
             find . -type f -name "*.apk" -print
-
             exit 1
           fi
 
