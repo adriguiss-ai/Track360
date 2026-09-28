@@ -48,7 +48,7 @@ jobs:
           echo "SEARCH TRACK360 V4 ZIP"
           echo "======================================"
 
-          ZIP_FILE="TRACK360_Android_Project_V4.zip"
+          ZIP_FILE="TRACK360_Android_Project_V4_CORRIGE.zip"
 
           if [ ! -f "$ZIP_FILE" ]; then
             echo "ERROR: $ZIP_FILE introuvable."
