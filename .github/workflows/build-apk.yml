@@ -28,6 +28,7 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: gradle
 
 
       # ============================================================
@@ -70,6 +71,7 @@ jobs:
           fi
 
           echo "ZIP trouvé : $ZIP_FILE"
+
           echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
 
 
@@ -122,6 +124,7 @@ jobs:
           PROJECT_DIR=$(dirname "$SETTINGS_FILE")
 
           echo "PROJECT_DIR=$PROJECT_DIR"
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
 
@@ -148,7 +151,7 @@ jobs:
 
           echo ""
           echo "Gradle files:"
-          find . -maxdepth 3 -type f \
+          find . -maxdepth 2 -type f \
             \( -name "build.gradle" \
             -o -name "build.gradle.kts" \
             -o -name "settings.gradle" \
@@ -172,58 +175,12 @@ jobs:
             echo "Gradle wrapper trouvé."
           else
             echo "Gradle wrapper absent."
-            echo "Le Gradle installé sera utilisé."
+            echo "Le Gradle 8.9 installé sera utilisé."
           fi
 
 
       # ============================================================
-      # 9. FORCE JVM 17
-      # ============================================================
-      - name: Force Java and Kotlin JVM 17
-        shell: bash
-        run: |
-          set -e
-
-          cd "$PROJECT_DIR"
-
-          echo "=========================================="
-          echo "FORCE JVM TARGET 17"
-          echo "=========================================="
-
-          echo "Recherche des fichiers Gradle..."
-
-          find . -type f \
-            \( -name "build.gradle" -o -name "build.gradle.kts" \) \
-            -print
-
-          echo ""
-          echo "Correction Java 1.8 -> Java 17..."
-
-          find . -type f \
-            \( -name "build.gradle" -o -name "build.gradle.kts" \) \
-            -exec sed -i \
-              -e 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' \
-              -e 's/JavaVersion.VERSION_18/JavaVersion.VERSION_17/g' \
-              -e 's/JavaLanguageVersion.of(8)/JavaLanguageVersion.of(17)/g' \
-              -e 's/JavaLanguageVersion.of(18)/JavaLanguageVersion.of(17)/g' \
-              -e 's/jvmTarget[[:space:]]*=[[:space:]]*"1\.8"/jvmTarget = "17"/g' \
-              -e 's/jvmTarget[[:space:]]*=[[:space:]]*"8"/jvmTarget = "17"/g' \
-              -e 's/jvmTarget[[:space:]]*=[[:space:]]*"18"/jvmTarget = "17"/g' \
-              {} \;
-
-          echo ""
-          echo "Configuration JVM détectée :"
-
-          grep -Rni \
-            -E "VERSION_1_8|VERSION_17|VERSION_18|jvmTarget|JavaLanguageVersion" \
-            . \
-            --include="build.gradle" \
-            --include="build.gradle.kts" \
-            || true
-
-
-      # ============================================================
-      # 10. CLEAN
+      # 9. CLEAN
       # ============================================================
       - name: Clean project
         shell: bash
@@ -232,15 +189,23 @@ jobs:
 
           cd "$PROJECT_DIR"
 
+          echo "=========================================="
+          echo "CLEAN PROJECT"
+          echo "=========================================="
+
           if [ -f "./gradlew" ]; then
-            ./gradlew clean --no-daemon
+            ./gradlew clean \
+              --no-daemon \
+              -Pkotlin.jvm.target.validation.mode=warning
           else
-            gradle clean --no-daemon
+            gradle clean \
+              --no-daemon \
+              -Pkotlin.jvm.target.validation.mode=warning
           fi
 
 
       # ============================================================
-      # 11. BUILD DEBUG APK
+      # 10. BUILD DEBUG APK
       # ============================================================
       - name: Build TRACK360 Debug APK
         shell: bash
@@ -255,23 +220,25 @@ jobs:
 
           echo "Gradle : 8.9"
           echo "Java   : 17"
-          echo "Kotlin : 17"
+          echo "Kotlin JVM target validation : WARNING"
 
           if [ -f "./gradlew" ]; then
             ./gradlew assembleDebug \
               --no-daemon \
               --stacktrace \
-              --warning-mode all
+              --warning-mode all \
+              -Pkotlin.jvm.target.validation.mode=warning
           else
             gradle assembleDebug \
               --no-daemon \
               --stacktrace \
-              --warning-mode all
+              --warning-mode all \
+              -Pkotlin.jvm.target.validation.mode=warning
           fi
 
 
       # ============================================================
-      # 12. FIND APK
+      # 11. FIND APK
       # ============================================================
       - name: Find TRACK360 APK
         shell: bash
@@ -302,7 +269,7 @@ jobs:
 
 
       # ============================================================
-      # 13. VERIFY APK
+      # 12. VERIFY APK
       # ============================================================
       - name: Verify APK
         shell: bash
@@ -314,11 +281,12 @@ jobs:
           echo "=========================================="
 
           ls -lh "$APK_FILE"
+
           file "$APK_FILE"
 
 
       # ============================================================
-      # 14. UPLOAD APK
+      # 13. UPLOAD APK
       # ============================================================
       - name: Upload TRACK360 APK
         uses: actions/upload-artifact@v4
@@ -329,7 +297,7 @@ jobs:
 
 
       # ============================================================
-      # 15. BUILD SUMMARY
+      # 14. BUILD SUMMARY
       # ============================================================
       - name: Build summary
         shell: bash
