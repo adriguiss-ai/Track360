@@ -13,35 +13,24 @@ jobs:
 
     steps:
 
-      # ============================================================
       # 1. CHECKOUT
-      # ============================================================
       - name: Checkout
         uses: actions/checkout@v4
 
-
-      # ============================================================
       # 2. JDK 17
-      # ============================================================
       - name: Setup JDK 17
         uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
-
-      # ============================================================
       # 3. GRADLE 8.9
-      # ============================================================
       - name: Setup Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-
-      # ============================================================
       # 4. FIND TRACK360 ZIP
-      # ============================================================
       - name: Locate TRACK360 ZIP
         shell: bash
         run: |
@@ -53,8 +42,8 @@ jobs:
 
           ZIP_FILE=""
 
-          if [ -f "TRACK360_Android_Project_V6_CORRIGE.zip" ]; then
-            ZIP_FILE="TRACK360_Android_Project_V6_CORRIGE.zip"
+          if [ -f "TRACK360_Android_Project_V6_CORRIGE_MILLIERS.zip" ]; then
+            ZIP_FILE="TRACK360_Android_Project_V6_CORRIGE_MILLIERS.zip"
           else
             ZIP_FILE=$(find . -maxdepth 3 -type f \
               \( -iname "TRACK360*.zip" -o -iname "*Track360*.zip" \) \
@@ -63,50 +52,32 @@ jobs:
 
           if [ -z "$ZIP_FILE" ]; then
             echo "ERROR: TRACK360 ZIP introuvable."
-            echo ""
-            echo "Fichiers présents:"
             find . -maxdepth 3 -type f -print
             exit 1
           fi
 
           echo "ZIP trouvé : $ZIP_FILE"
-
           echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
 
-
-      # ============================================================
       # 5. EXTRACT ZIP
-      # ============================================================
       - name: Extract TRACK360 project
         shell: bash
         run: |
           set -e
-
-          echo "=========================================="
-          echo "EXTRACT TRACK360 ZIP"
-          echo "=========================================="
 
           rm -rf track360_build
           mkdir -p track360_build
 
           unzip -q "$ZIP_FILE" -d track360_build
 
-          echo ""
           echo "Projet extrait:"
           find track360_build -maxdepth 4 -type f -print | head -200
 
-
-      # ============================================================
       # 6. FIND ANDROID GRADLE PROJECT
-      # ============================================================
       - name: Find Android Gradle project
         shell: bash
         run: |
           set -e
-
-          echo "=========================================="
-          echo "FIND ANDROID GRADLE PROJECT"
-          echo "=========================================="
 
           SETTINGS_FILE=$(find track360_build \
             -type f \
@@ -122,13 +93,9 @@ jobs:
           PROJECT_DIR=$(dirname "$SETTINGS_FILE")
 
           echo "PROJECT_DIR=$PROJECT_DIR"
-
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-
-      # ============================================================
       # 7. CHECK PROJECT
-      # ============================================================
       - name: Check Gradle project
         shell: bash
         run: |
@@ -140,11 +107,7 @@ jobs:
           echo "CHECK GRADLE PROJECT"
           echo "=========================================="
 
-          echo "Project directory:"
           pwd
-
-          echo ""
-          echo "Gradle files:"
 
           find . -maxdepth 3 -type f \
             \( -name "build.gradle" \
@@ -154,10 +117,7 @@ jobs:
             -o -name "gradlew" \) \
             -print
 
-
-      # ============================================================
       # 8. PREPARE GRADLE WRAPPER
-      # ============================================================
       - name: Prepare Gradle wrapper
         shell: bash
         run: |
@@ -173,20 +133,13 @@ jobs:
             echo "Gradle 8.9 sera utilisé."
           fi
 
-
-      # ============================================================
-      # 9. CONFIGURATION JAVA 17 / KOTLIN 17
-      # ============================================================
+      # 9. CONFIGURATION JAVA/KOTLIN 17
       - name: Configure JVM 17
         shell: bash
         run: |
           set -e
 
           cd "$PROJECT_DIR"
-
-          echo "=========================================="
-          echo "CONFIGURATION JAVA 17 / KOTLIN 17"
-          echo "=========================================="
 
           cat > track360-jvm17.gradle <<'EOF'
 
@@ -238,12 +191,7 @@ jobs:
 
           EOF
 
-          echo "Configuration créée."
-
-
-      # ============================================================
       # 10. CLEAN
-      # ============================================================
       - name: Clean project
         shell: bash
         run: |
@@ -261,10 +209,7 @@ jobs:
               -I track360-jvm17.gradle
           fi
 
-
-      # ============================================================
       # 11. BUILD DEBUG APK
-      # ============================================================
       - name: Build TRACK360 Debug APK
         shell: bash
         run: |
@@ -298,10 +243,7 @@ jobs:
 
           fi
 
-
-      # ============================================================
       # 12. FIND APK
-      # ============================================================
       - name: Find TRACK360 APK
         shell: bash
         run: |
@@ -328,10 +270,7 @@ jobs:
 
           echo "APK_FILE=$APK_ABSOLUTE" >> "$GITHUB_ENV"
 
-
-      # ============================================================
       # 13. VERIFY APK
-      # ============================================================
       - name: Verify APK
         shell: bash
         run: |
@@ -342,7 +281,6 @@ jobs:
           echo "=========================================="
 
           ls -lh "$APK_FILE"
-
           file "$APK_FILE"
 
           SIZE=$(stat -c%s "$APK_FILE")
@@ -354,10 +292,7 @@ jobs:
 
           echo "APK valide."
 
-
-      # ============================================================
       # 14. UPLOAD APK
-      # ============================================================
       - name: Upload TRACK360 APK
         uses: actions/upload-artifact@v4
         with:
@@ -365,10 +300,7 @@ jobs:
           path: ${{ env.APK_FILE }}
           if-no-files-found: error
 
-
-      # ============================================================
       # 15. BUILD SUMMARY
-      # ============================================================
       - name: Build summary
         shell: bash
         run: |
