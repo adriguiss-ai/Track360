@@ -42,8 +42,8 @@ jobs:
 
           ZIP_FILE=""
 
-          if [ -f "TRACK360_Android_Project_V6_CORRIGE_MILLIERS.zip" ]; then
-            ZIP_FILE="TRACK360_Android_Project_V6_CORRIGE_MILLIERS.zip"
+          if [ -f "TRACK360_Android_Project_V7_EXCEL.zip" ]; then
+            ZIP_FILE="TRACK360_Android_Project_V7_EXCEL.zip"
           else
             ZIP_FILE=$(find . -maxdepth 3 -type f \
               \( -iname "TRACK360*.zip" -o -iname "*Track360*.zip" \) \
