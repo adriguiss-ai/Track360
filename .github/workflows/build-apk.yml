@@ -42,8 +42,8 @@ jobs:
 
           ZIP_FILE=""
 
-          if [ -f "TRACK360_Android_Project_V7_EXCEL.zip" ]; then
-            ZIP_FILE="TRACK360_Android_Project_V7_EXCEL.zip"
+          if [ -f "TRACK360_Android_Project_V8_EXCEL_SYNTHESE.zip" ]; then
+            ZIP_FILE="TRACK360_Android_Project_V8_EXCEL_SYNTHESE.zip"
           else
             ZIP_FILE=$(find . -maxdepth 3 -type f \
               \( -iname "TRACK360*.zip" -o -iname "*Track360*.zip" \) \
@@ -307,8 +307,9 @@ jobs:
           echo "=========================================="
           echo "TRACK360 BUILD SUCCESS"
           echo "=========================================="
-          echo "Java   : 17"
-          echo "Kotlin : 17"
-          echo "Gradle : 8.9"
-          echo "APK    : $APK_FILE"
+          echo "Version : V8 EXCEL SYNTHESE"
+          echo "Java    : 17"
+          echo "Kotlin  : 17"
+          echo "Gradle  : 8.9"
+          echo "APK     : $APK_FILE"
           echo "=========================================="
